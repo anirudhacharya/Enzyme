@@ -1584,13 +1584,18 @@ FunctionType *getFunctionTypeForClone(
     bool diffeReturnArg, ReturnType returnValue, DIFFE_TYPE returnType) {
   std::vector<Type *> RetTypes;
   if (returnValue == ReturnType::ArgsWithReturn ||
-      returnValue == ReturnType::ArgsWithTwoReturns ||
-      returnValue == ReturnType::Return ||
-      returnValue == ReturnType::TwoReturns)
-    RetTypes.push_back(FTy->getReturnType());
-  if (returnValue == ReturnType::ArgsWithTwoReturns ||
-      returnValue == ReturnType::TwoReturns)
-    RetTypes.push_back(FTy->getReturnType());
+      returnValue == ReturnType::Return) {
+    if (returnType != DIFFE_TYPE::CONSTANT)
+      RetTypes.push_back(
+          GradientUtils::getShadowType(FTy->getReturnType(), width));
+  } else if (returnValue == ReturnType::ArgsWithTwoReturns ||
+             returnValue == ReturnType::TwoReturns) {
+    if (returnType != DIFFE_TYPE::CONSTANT) {
+      RetTypes.push_back(FTy->getReturnType());
+      RetTypes.push_back(
+          GradientUtils::getShadowType(FTy->getReturnType(), width));
+    }
+  }
   std::vector<Type *> ArgTypes;
 
   // The user might be deleting arguments to the function by specifying them in
@@ -1601,7 +1606,7 @@ FunctionType *getFunctionTypeForClone(
     ArgTypes.push_back(I);
     if (constant_args[argno] == DIFFE_TYPE::DUP_ARG ||
         constant_args[argno] == DIFFE_TYPE::DUP_NONEED) {
-      ArgTypes.push_back(I);
+      ArgTypes.push_back(GradientUtils::getShadowType(I, width));
     } else if (constant_args[argno] == DIFFE_TYPE::OUT_DIFF) {
       RetTypes.push_back(I);
     }
@@ -1736,7 +1741,8 @@ Function *PreProcessCache::CloneFunctionWithReturns(
         constant_args[ii] == DIFFE_TYPE::DUP_NONEED) {
       hasPtrInput = true;
       ptrInputs[i] = (j + 1);
-      if (F->hasParamAttribute(ii, Attribute::NoCapture)) {
+      // TODO: find a way to keep the attributes in vector mode.
+      if (F->hasParamAttribute(ii, Attribute::NoCapture) && width == 1) {
         NewF->addParamAttr(jj + 1, Attribute::NoCapture);
       }
 
